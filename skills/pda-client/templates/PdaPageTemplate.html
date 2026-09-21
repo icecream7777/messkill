@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>{PAGE_TITLE}</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/mui.min.css"/>
+    <link rel="stylesheet" href="../css/mui.picker.min.css" />
+    <link rel="stylesheet" href="../JavaScript/bootstrap.css"/>
+    <link rel="stylesheet" href="../JavaScript/01CSS/index.css"/>
+    <script type="text/javascript" src="../js/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript" src="../js/mui.min.js"></script>
+    <script type="text/javascript" src="../js/mui.picker.min.js"></script>
+    <script type="text/javascript" src="../JavaScript/language.js"></script>
+</head>
+<body>
+    <header class="mui-bar mui-bar-nav i_totle">
+        <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left" id="btn_back"></a>
+        <h1 class="mui-title i_h1">{PAGE_TITLE}</h1>
+    </header>
+
+    <div class="mui-content i_over" style="padding-top: 50px;">
+        <div class="AddForm" style="margin: 10px 15px;">
+            <!-- 扫码主输入区 -->
+            <div style="position: relative;">
+                <input class="i_LOTID" id="BARCODE" placeholder="请扫描条码/输入批次号..." autocomplete="off" />
+                <span class="i_Req" style="position: absolute; right: 10px; top: 10px; color: red;">*</span>
+            </div>
+
+            <!-- 只读属性回显区 -->
+            <div style="margin-top: 8px;">
+                <label class="i_lbl">物料编码:</label>
+                <input class="i_read" id="ITNBR" readonly="readonly" />
+            </div>
+            <div>
+                <label class="i_lbl">物料描述:</label>
+                <input class="i_read" id="ITDSC" readonly="readonly" />
+            </div>
+            <div>
+                <label class="i_lbl">数量/重量:</label>
+                <input class="i_read" id="QTY" type="number" placeholder="0.000" />
+            </div>
+
+            <!-- 操作按钮组 -->
+            <div style="margin-top: 15px; display: flex; justify-content: space-around;">
+                <button type="button" class="mui-btn mui-btn-primary" id="btnSubmit" style="width: 45%;">确认提交</button>
+                <button type="button" class="mui-btn mui-btn-danger" id="btnClear" style="width: 45%;">清空重置</button>
+            </div>
+        </div>
+
+        <!-- 历史/明细列表区 -->
+        <div style="margin: 10px 15px;">
+            <div style="font-weight: bold; padding: 5px 0;">已处理明细 (共 <span id="recordCount">0</span> 条)</div>
+            <table class="table table-bordered table-striped" style="font-size: 13px;">
+                <thead>
+                    <tr>
+                        <th>条码/批次</th>
+                        <th>规格</th>
+                        <th>数量</th>
+                        <th>时间</th>
+                    </tr>
+                </thead>
+                <tbody id="detailBody">
+                    <!-- 动态插入明细行 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 关联控制器脚本 -->
+    <script type="text/javascript" src="../JavaScript/01JS/{SCRIPT_NAME}.js"></script>
+</body>
+</html>
