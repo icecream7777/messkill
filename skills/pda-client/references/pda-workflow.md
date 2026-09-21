@@ -1,64 +1,75 @@
-# MES PDA 移动扫码端工作流与业务规范
+# MES PDA 移动端工作流参考
 
-本规范详细定义浦林成山 MES 移动端（PDA 扫码终端）的业务生命周期、人机交互与后端交互规范。
+本规范基于 `03-PDA` 与 `04-服务器端程序/LonSon.Mobile.PrinxChengShan.App.Web` 实际代码提炼。
 
 ---
 
-## 1. PDA 业务扫码全生命周期
+## 1. 业务交互流程
+
+以 `Forming/BarcodeUpdate.html` 与 `js/BarCodeUpdate.js` 为标准案例：
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Worker as 操作工人 / 扫码枪
     participant UI as PDA 界面 (HTML5/MUI)
-    participant JS as 脚本控制器 (.js)
-    participant WS as 后端 WebService (.asmx)
-    participant DB as MES 数据库
+    participant JS as 控制器脚本 (.js)
+    participant Ashx as 后端接口 (.ashx)
+    participant BLL as 业务逻辑层 (.cs)
 
-    Worker->>UI: 触发激光扫码或回车键输入条码
-    UI->>JS: keyup 事件触发 (keyCode==13 / Enter)
-    JS->>JS: 前置校验 (长度检查、重复扫描拦截)
-    JS->>WS: mui.ajax (MethodName, Params: [FAC, User, Barcode])
-    WS->>DB: 校验条码存在性、批次状态、工序防错
-    DB-->>WS: 返回执行结果数据集或错误提示
-    WS-->>JS: JSON 格式应答
-    alt 校验成功
-        JS->>UI: 界面局部渲染回填、播放成功提示音 (Success Sound)
-    else 校验失败 / 业务异常
-        JS->>UI: 界面标红高亮、播放报警蜂鸣音 (Error Sound)、弹窗提示
-        JS->>UI: 清空输入框并重新获取光标 (focus)
+    Worker->>UI: 扫入条码 (触发 keyup / keyCode 13 或 0)
+    UI->>JS: 获取输入框内容
+    JS->>Ashx: mui.ajax (action="by", Token, FAC, LOGINNAM, BARCODE)
+    Ashx->>BLL: ProcessRequest -> GetByBarcode
+    BLL-->>Ashx: 返回 JSON (Messaging 对象)
+    Ashx-->>JS: 返回数据包
+    alt 查询成功
+        JS->>UI: 回填条码、规格、数量等字段展示
+    else 未查到或异常
+        JS->>UI: mui.toast("未找到扫描的条码信息!")
     end
+    JS->>UI: 清空扫码框并 _selBARCODE.focus()
+
+    Worker->>UI: 点击“确定”按钮 (tap 事件)
+    UI->>JS: OnCheckText() 表单必填校验
+    JS->>Ashx: mask.show() -> mui.ajax (action="up", 数据参数)
+    Ashx->>BLL: ProcessRequest -> UpdateData
+    BLL-->>Ashx: 返回处理结果
+    Ashx-->>JS: 返回响应
+    JS->>UI: mui.toast("操作成功!") -> OnCleanText() -> mask.close()
 ```
 
 ---
 
-## 2. 交互与硬件适配规范
+## 2. 核心代码规范
 
-### 1. 硬件扫码监听机制
-PDA 红外/激光扫描头在扫入条码后，默认会模拟物理键盘发送 `Enter`（键值 13）或特定按键事件（0 或 229）。
-前端必须在扫码输入框上绑定 `keyup` 事件：
+### 1. 扫码框按键监听
+扫码输入框绑定 `keyup` 事件，拦截 `13`（回车）与 `0`（部分扫码头）：
 ```javascript
-var inputBarcode = mui('#BARCODE')[0];
-inputBarcode.focus();
+var _selBARCODE = mui('#selBARCODE')[0];
+_selBARCODE.focus();
 
-inputBarcode.addEventListener('keyup', function(event) {
-    if (13 === event.keyCode || 0 === event.keyCode || 229 === event.keyCode) {
-        var codeVal = inputBarcode.value.trim();
-        if (codeVal.length >= 6) {
-            handleScanBarcode(codeVal);
+_selBARCODE.addEventListener('keyup', function() {
+    if (13 == event.keyCode || 0 == event.keyCode) {
+        var barcodeVal = _selBARCODE.value.trim();
+        if (barcodeVal.length >= 6) {
+            queryBarcodeInfo(barcodeVal);
         }
     }
-});
+    _selBARCODE.focus();
+}, false);
 ```
 
-### 2. 扫码后光标复位与选中 (Focus Retention)
-在提交处理完成或提示错误后，必须立即调用 `input.select()` 或 `input.focus()`，确保操作人员无需手动点击屏幕即可连续扫描下一件产品。
-
-### 3. 会话变量与班次绑定
-PDA 运行于离线或移动网络环境，登录信息保存在 `localStorage` 中：
+### 2. 本地会话变量
+PDA 登录后将用户信息存储于 `window.localStorage`：
+- `storage["Token"]`：接口身份验证令牌
 - `storage["FAC"]`：所属工厂代码（如 "02"）
-- `storage["LOGINNAME"]`：登录工号
-- `storage["NAME"]`：登录员工姓名
-- `storage["SHIFT"]`：当前班次
-- `storage["WDATE"]`：当前工厂日期
-所有提交到 WebService 的接口参数数组首两位固定为 `FAC` 与 `LOGINNAME`。
+- `storage["FACNM"]`：工厂名称
+- `storage["NAME"]`：员工姓名
+- `storage["LOGINNAME"]`：员工工号
+- `storage["Language"]`：多语言环境代码（如 "CHN", "ENG", "THAI"）
+
+### 3. 数据提交与提示
+- 请求前使用 `mask.show()` 开启遮罩防止重复提交，响应后调用 `mask.close()`。
+- 轻量提示使用 `mui.toast(msg, { duration: tim, type: 'div' })`。
+- 警告/错误弹窗使用 `mui.alert(msg, "Message")`。

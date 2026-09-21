@@ -1,154 +1,133 @@
 /**
- * MES PDA 控制器脚本: {SCRIPT_NAME}.js
- * 负责条码扫描监听、输入合法性校验、WebService 数据交互与界面渲染
+ * 功能描述(Description)：{PAGE_TITLE} 控制器脚本
+ * 参考代码：03-PDA/LonSon.Mobile.PrinxChengShan.App/js/BarCodeUpdate.js
  */
-(function($, doc) {
-    mui.init();
+var storage = window.localStorage;
 
-    mui.plusReady(function() {
-        var inputBarcode = doc.getElementById('BARCODE');
-        var btnSubmit = doc.getElementById('btnSubmit');
-        var btnClear = doc.getElementById('btnClear');
+(function($) {
+    $.init();
 
-        // 默认光标聚焦至扫码框
-        inputBarcode.focus();
+    // 显示当前登录用户与所属工厂
+    mui('#lblUser')[0].innerText = storage["NAME"] || "";
+    mui('#lblTime')[0].innerText = "FTY." + (storage["FACNM"] || storage["FAC"] || "");
 
-        // 监听激光/红外扫码事件 (Enter 键 13 / 特殊键 0, 229)
-        inputBarcode.addEventListener('keyup', function(event) {
-            if (event.keyCode === 13 || event.keyCode === 0 || event.keyCode === 229) {
-                var codeVal = inputBarcode.value.trim();
-                if (codeVal.length >= 6) {
-                    onBarcodeScanned(codeVal);
-                }
+    var _selBARCODE = mui('#selBARCODE')[0];
+    _selBARCODE.focus();
+
+    // 扫码枪回车按键事件监听
+    _selBARCODE.addEventListener('keyup', function() {
+        if (13 == event.keyCode || 0 == event.keyCode) {
+            var barcodeVal = _selBARCODE.value.trim();
+            if (barcodeVal.length >= 6) {
+                queryBarcodeInfo(barcodeVal);
             }
-        });
+        }
+        _selBARCODE.focus();
+    }, false);
 
-        // 确认提交按钮
-        btnSubmit.addEventListener('tap', function() {
-            submitTransaction();
-        });
-
-        // 清空重置按钮
-        btnClear.addEventListener('tap', function() {
-            resetForm();
-        });
-    });
+    // 确定按钮事件
+    var btn = mui('#btnAdd')[0];
+    btn.addEventListener('tap', function() {
+        if (OnCheckText()) {
+            mask.show();
+            mui.ajax(requestPath + '/ashx/{MODULE_NAME}.ashx', {
+                data: {
+                    action: "up",
+                    Token: storage["Token"],
+                    lang: storage["Language"],
+                    FAC: storage["FAC"],
+                    LOGINNAM: storage["LOGINNAME"],
+                    ENAM: storage["NAME"],
+                    BARCODE: mui('#txtBARCODE')[0].value,
+                    QTY: mui('#txtQTY')[0].value
+                },
+                dataType: 'json',
+                type: 'post',
+                timeout: 100000,
+                success: function(data) {
+                    if (data.ErrCode == "0") {
+                        mui.toast(data.Error || "操作成功!", {
+                            duration: tim,
+                            type: 'div'
+                        });
+                        OnCleanText();
+                    } else {
+                        mui.alert(data.Error || "提交失败!", "Message");
+                    }
+                    _selBARCODE.value = '';
+                    _selBARCODE.focus();
+                    mask.close();
+                },
+                error: function(xhr, type) {
+                    mask.close();
+                    mui.alert("网络请求超时或异常: " + type, "错误");
+                    _selBARCODE.focus();
+                }
+            });
+        }
+    }, false);
 
     /**
-     * 条码扫入后的业务处理
+     * 扫码后查询条码基础信息
      */
-    function onBarcodeScanned(barcode) {
-        var params = [
-            storage["FAC"] || "02",
-            storage["LOGINNAME"] || "",
-            barcode
-        ];
-
-        mui.ajax(webUrl, {
-            traditional: true,
-            data: JSON.stringify({
-                MethodName: "{SERVICE_PREFIX}_GetBarcodeInfo",
-                Params: params
-            }),
+    function queryBarcodeInfo(barcode) {
+        mui.ajax(requestPath + '/ashx/{MODULE_NAME}.ashx', {
+            data: {
+                action: "by",
+                Token: storage["Token"],
+                FAC: storage["FAC"],
+                LOGINNAM: storage["LOGINNAME"],
+                ENAM: storage["NAME"],
+                BARCODE: barcode,
+                lang: storage["Language"]
+            },
             dataType: 'json',
             type: 'post',
-            timeout: 5000,
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            success: function(response) {
-                var res = JSON.parse(response.d);
-                if (res.Success && res.Data) {
-                    doc.getElementById('ITNBR').value = res.Data.ITNBR || "";
-                    doc.getElementById('ITDSC').value = res.Data.ITDSC || "";
-                    doc.getElementById('QTY').value = res.Data.QTY || "1.000";
-                    doc.getElementById('QTY').focus();
+            success: function(data) {
+                if (data.Info && data.Info.BARCODE) {
+                    mui('#txtBARCODE')[0].value = data.Info.BARCODE;
+                    mui('#txtITNBR')[0].value = data.Info.BUITNBR || "";
+                    mui('#txtITDSC')[0].value = data.Info.BUITDSC || "";
+                    mui('#txtQTY')[0].value = data.Info.QTY || "1";
                 } else {
-                    mui.alert(res.Message || "未检索到该条码信息！", "提示", "确定", function() {
-                        doc.getElementById('BARCODE').value = "";
-                        doc.getElementById('BARCODE').focus();
+                    mui.toast("未找到扫描的条码信息!", {
+                        duration: tim,
+                        type: 'div'
                     });
                 }
+                _selBARCODE.value = '';
+                _selBARCODE.focus();
             },
             error: function(xhr, type) {
-                mui.alert("网络请求失败: " + type, "错误");
+                mui.toast("网络异常: " + type);
+                _selBARCODE.focus();
             }
         });
     }
 
-    /**
-     * 提交操作
-     */
-    function submitTransaction() {
-        var barcode = doc.getElementById('BARCODE').value.trim();
-        var itnbr = doc.getElementById('ITNBR').value.trim();
-        var qty = doc.getElementById('QTY').value.trim();
+})(mui);
 
-        if (!barcode) {
-            mui.alert("请先扫描条码！", "提示");
-            return;
-        }
+/**
+ * 界面输入清空复位
+ */
+function OnCleanText() {
+    mui('#txtBARCODE')[0].value = '';
+    mui('#txtITNBR')[0].value = '';
+    mui('#txtITDSC')[0].value = '';
+    mui('#txtQTY')[0].value = '';
+    var _sel = mui('#selBARCODE')[0];
+    _sel.value = '';
+    _sel.focus();
+}
 
-        var params = [
-            storage["FAC"] || "02",
-            storage["LOGINNAME"] || "",
-            barcode,
-            itnbr,
-            qty
-        ];
-
-        mui.ajax(webUrl, {
-            traditional: true,
-            data: JSON.stringify({
-                MethodName: "{SERVICE_PREFIX}_SubmitData",
-                Params: params
-            }),
-            dataType: 'json',
-            type: 'post',
-            timeout: 6000,
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            success: function(response) {
-                var res = JSON.parse(response.d);
-                if (res.Success) {
-                    mui.toast("提交成功！");
-                    appendDetailRow(barcode, itnbr, qty);
-                    resetForm();
-                } else {
-                    mui.alert(res.Message || "保存失败！", "错误");
-                }
-            },
-            error: function(xhr, type) {
-                mui.alert("提交异常: " + type, "错误");
-            }
-        });
+/**
+ * 提交前必填项校验
+ */
+function OnCheckText() {
+    if (!mui('#txtBARCODE')[0].value) {
+        mui.alert("请先扫描条码信息！");
+        mui('#selBARCODE')[0].focus();
+        return false;
     }
-
-    /**
-     * 将已处理记录添加到下方明细表格
-     */
-    function appendDetailRow(barcode, itnbr, qty) {
-        var tbody = doc.getElementById('detailBody');
-        var tr = doc.createElement('tr');
-        var now = new Date();
-        var timeStr = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
-
-        tr.innerHTML = "<td>" + barcode + "</td>" +
-                       "<td>" + itnbr + "</td>" +
-                       "<td>" + qty + "</td>" +
-                       "<td>" + timeStr + "</td>";
-        tbody.insertBefore(tr, tbody.firstChild);
-
-        var countSpan = doc.getElementById('recordCount');
-        countSpan.innerText = parseInt(countSpan.innerText || "0") + 1;
-    }
-
-    /**
-     * 重置表单并重新聚焦
-     */
-    function resetForm() {
-        doc.getElementById('BARCODE').value = "";
-        doc.getElementById('ITNBR').value = "";
-        doc.getElementById('ITDSC').value = "";
-        doc.getElementById('QTY').value = "";
-        doc.getElementById('BARCODE').focus();
-    }
-
-})(mui, document);
+    return true;
+}

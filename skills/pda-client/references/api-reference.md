@@ -1,78 +1,86 @@
-# MES PDA 端 API 与 WebService 协议参考手册
+# MES PDA 移动端接口与通信参考
 
-本文档说明浦林成山 MES 移动 PDA 端的前后端通信规范与常用接口定义。
+本文档基于 `03-PDA` 与 `04-服务器端程序/LonSon.Mobile.PrinxChengShan.App.Web` 实际代码提炼。
 
 ---
 
-## 1. 前端通信框架：MUI Ajax 规范
+## 1. 前端 Ajax 请求格式
 
-PDA 前端统一使用 MUI 的 `mui.ajax` 与后端 WebService 通信：
+PDA 前端统一通过 `mui.ajax` 向后端的通用处理程序（`.ashx`）发送 POST 请求：
 
 ```javascript
-var arr = new Array();
-arr.push(storage["FAC"]);        // 参数 0: 工厂代码
-arr.push(storage["LOGINNAME"]);  // 参数 1: 操作员工号
-arr.push(barcode);               // 参数 2: 扫描条码
-arr.push(extraParam);            // 参数 3+: 其它业务参数
-
-mui.ajax(webUrl, {
-    traditional: true,
-    data: JSON.stringify({
-        MethodName: "PdaService_SaveData",
-        Params: arr
-    }),
+mui.ajax(requestPath + '/ashx/{MODULE}.ashx', {
+    data: {
+        action: "by",                   // 常用 action: "by"(查条码), "up"(提交更新), "sea"(条件检索)
+        Token: storage["Token"],         // 认证 Token
+        FAC: storage["FAC"],             // 工厂代码 (如 "02")
+        LOGINNAM: storage["LOGINNAME"],  // 登录工号
+        ENAM: storage["NAME"],           // 登录人姓名
+        BARCODE: barcode,                // 扫描条码
+        lang: storage["Language"]        // 语言
+    },
     dataType: 'json',
     type: 'post',
-    timeout: 5000,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    async: false,
-    success: function(response) {
-        var res = JSON.parse(response.d);
-        if (res.Success || (Array.isArray(res) && res.length > 0)) {
-            // 处理业务成功
-            mui.toast("操作成功！");
-        } else {
-            mui.alert(res.Message || "操作失败！", "系统提示");
-        }
+    timeout: 100000,
+    success: function(data) {
+        // data.ErrCode 为 "0" 表示业务成功
+        // data.Info 包含业务实体数据
+        // data.Error 包含提示或错误文本
     },
-    error: function(xhr, type, errorThrown) {
-        mui.alert("网络请求异常: " + type, "网络错误");
+    error: function(xhr, type) {
+        mui.alert("网络请求异常: " + type);
     }
 });
 ```
 
 ---
 
-## 2. 后端协议：C# WebService (ASMX)
+## 2. 后端 Handler 与 Bll 标准实现
 
-后端统一采用 ASP.NET WebService 或 WCF 提供移动端服务：
-
+### 1. ASHX 路由入口（如 `LTA01.ashx`）
 ```csharp
-[WebService(Namespace = "http://tempuri.org/")]
-[WebServiceBinding(ConformsTo = WsiProfiles.BasicProfile1_1)]
-[System.Web.Script.Services.ScriptService]
-public class PdaWebService : System.Web.Services.WebService
+<%@ WebHandler Language="C#" Class="LTA01" %>
+
+using System;
+using System.Web;
+using Mobile.PrinxChengShan.Bll;
+using System.Web.SessionState;
+
+public class LTA01 : IHttpHandler, IReadOnlySessionState
 {
-    [WebMethod]
-    [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
-    public string ExecuteMethod(string MethodName, string[] Params)
+    public void ProcessRequest(HttpContext context)
     {
-        try
+        context.Response.Write(new LTA0001Bll().ProcessRequest(context));
+    }
+
+    public bool IsReusable => false;
+}
+```
+
+### 2. BLL 业务处理（如 `LTA0001Bll.cs`）
+```csharp
+public class LTA0001Bll
+{
+    private LTA0001Dal dal = new LTA0001Dal();
+
+    public string ProcessRequest(HttpContext context)
+    {
+        string action = context.Request["action"] ?? string.Empty;
+        switch (action)
         {
-            switch (MethodName)
-            {
-                case "Pda_GetMaterialInfo":
-                    return GetMaterialInfo(Params);
-                case "Pda_SubmitTransaction":
-                    return SubmitTransaction(Params);
-                default:
-                    return JsonConvert.SerializeObject(new { Success = false, Message = "未找到请求的处理方法" });
-            }
-        }
-        catch (Exception ex)
-        {
-            return JsonConvert.SerializeObject(new { Success = false, Message = ex.Message });
+            case "by":
+                return GetByBarcode(context);
+            case "up":
+                return UpdateData(context);
+            default:
+                return JsonHelper<Messaging<string>>.EntityToJson(
+                    new Messaging<string>("404", "未知操作指令"));
         }
     }
 }
 ```
+
+### 3. 数据应答包装（`Messaging<T>`）
+- 成功：`new Messaging<T>("0", "", dataModel)`
+- 业务拦截/失败：`new Messaging<string>("1", "未找到扫描的条码信息")`
+- 系统异常：`new Messaging<string>("500", ex.Message)`

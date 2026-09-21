@@ -1,77 +1,104 @@
 ---
 name: mes-pda-client
 description: >-
-  Generate, customize, and maintain Prinx Chengshan MES Mobile PDA scanning modules (03-MES-PDA/04-MES-PDA-NEW).
-  Includes MUI/HTML5/JS front-end scanning views, hardware laser barcode listener, audio alarms,
-  and backend C# ASMX WebService RPC methods.
+  Create, modify, and maintain Prinx Chengshan MES Mobile PDA scanning modules and backend handlers.
+  Based on real 03-PDA (HTML5 + MUI) and 04-服务器端程序 (ASHX + BLL) architecture.
 ---
 
-# MES PDA 移动端代码生成技能 (MES PDA Client Skill)
+# 在 MES PDA 移动端创建扫码功能
 
-本技能用于为浦林成山 MES 移动手持扫码终端（`03-MES-PDA` / `04-MES-PDA-NEW`）快速生成符合现场硬件操作特性的 HTML5/MUI 前端页面、交互脚本及后端 C# ASMX WebService 接口方法。
-
----
-
-## 1. PDA 架构模式与代码生成标准
-
-MES PDA 采用**前后端轻量级 RPC 架构**：
-
-| 文件类型 | 典型路径 / 命名格式 | 框架 / 依赖 | 核心职能 |
-| :--- | :--- | :--- | :--- |
-| **PDA 视图 (HTML)** | `view/{module}/{CODE}.html` | HTML5 + MUI | 标题栏回退导航、扫码输入区、信息明细卡片、操作按钮栏 |
-| **PDA 控制器 (JS)** | `js/{module}/{CODE}.js` | MUI + jQuery | 硬件扫描头监听 (Enter/13)、前后端防错校验、音效触发、页面数据局部更新 |
-| **后端服务 (WebService)** | `PDAWebService.asmx.cs` | C# .NET ASMX | 接收统一 JSON 参数包 `{MethodName, Params}`，工序防错校验，事务入库 |
+MES 移动端（手持扫码终端）运行于 `03-PDA` 前端工程与 `04-服务器端程序` 后端工程。本技能完全基于系统现有生产代码（以 `Forming/BarcodeUpdate.html`、`js/BarCodeUpdate.js` 与 `Ashx/LTA01.ashx`、`LTA0001Bll.cs` 为样例）提供直接可用的开发规约与模板。
 
 ---
 
-## 2. 代码生成流水线 (Step-by-Step Workflow)
+## 1. 弄清业务与表结构（动手前必做）
 
-```mermaid
-flowchart TD
-    Req["输入: 扫码工序需求与防错规则"] --> S1["1. 确定模块路径与方法命名 (如 BarcodeCheckIn)"]
-    S1 --> S2["2. 生成前端 HTML 页面 (PdaPageTemplate.html)"]
-    S2 --> S3["3. 生成前端 JS 控制器 (PdaScriptTemplate.js)"]
-    S3 --> S4["4. 生成后端 WebService C# 方法 (WebServiceMethodTemplate.cs)"]
-    S4 --> S5["5. 部署并进行硬件扫描与网络异常测试"]
+在开发扫码功能前，**先查数据字典**（`D:\git\mes-major\06-数据字典\`），明确：
+1. 扫描的条码类型（硫化条码、胎胚条码、台车条码等）；
+2. 扫描后需要联查出哪些字段（如规格代码 `BUITNBR`、规格名称 `BUITDSC`、机台 `BUMCH` 等）；
+3. 提交后需要更新哪张表（如 `WIP0002`、`LTA0001` 等）。
+
+---
+
+## 2. 目录与命名约定
+
+- **前端页面**：`D:\git\mes-major\03-PDA\LonSon.Mobile.PrinxChengShan.App\<业务模块>\<功能名>.html`
+  - 示例：`Forming\BarcodeUpdate.html`
+- **前端 JS**：`D:\git\mes-major\03-PDA\LonSon.Mobile.PrinxChengShan.App\js\<功能名>.js`
+  - 示例：`js\BarCodeUpdate.js`
+- **后端 Handler**：`D:\git\mes-major\04-服务器端程序\LonSon.Mobile.PrinxChengShan.App.Web\Web\Ashx\<模块名>.ashx`
+  - 示例：`Ashx\LTA01.ashx`
+- **后端 BLL**：`D:\git\mes-major\04-服务器端程序\LonSon.Mobile.PrinxChengShan.App.Web\Mobile.PrinxChengShan.Bll\<模块名>Bll.cs`
+  - 示例：`Mobile.PrinxChengShan.Bll\LTA0001Bll.cs`
+
+---
+
+## 3. 完整实现流程（基于现有代码例子）
+
+### 步骤 1：前端 HTML 页面（参照 `BarcodeUpdate.html`）
+在对应业务目录下创建 `.html`（模板位于 [`templates/PdaPageTemplate.html`](./templates/PdaPageTemplate.html)）：
+- 顶部导航：`<header class="mui-bar mui-bar-nav">` 带有回退按钮与标题。
+- 表单区域：`<div class="mui-input-group">` 内放置扫码框与只读展示框：
+  ```html
+  <div class="mui-input-row">
+      <input type="text" id="selBARCODE" placeholder="扫描条码... " />
+  </div>
+  <div class="mui-input-row">
+      <label id="lblBARCODE">条码:</label>
+      <input type="text" id="txtBARCODE" class="mui-input" readonly="readonly" style="font-weight:bold;"/>
+  </div>
+  ```
+- 按钮栏：包含返回按钮与确认按钮 `<button id="btnAdd" ...>确定</button>`。
+- 底部状态：`<nav class="mui-bar mui-bar-tab">` 显示操作用户和工厂。
+- 底部依次引入 `jquery-3.3.1.min.js`、`mui.min.js`、`utilComm.js` 及对应业务 JS。
+
+### 步骤 2：前端 JS 脚本（参照 `BarCodeUpdate.js`）
+在 `js/` 目录下创建对应 `.js`（模板位于 [`templates/PdaScriptTemplate.js`](./templates/PdaScriptTemplate.js)）：
+1. **读取会话**：从 `window.localStorage` 获取 `NAME`、`FAC`、`LOGINNAME`、`Token`、`Language`。
+2. **光标聚焦与扫码监听**：
+   ```javascript
+   var _selBARCODE = mui('#selBARCODE')[0];
+   _selBARCODE.focus();
+   _selBARCODE.addEventListener('keyup', function() {
+       if (13 == event.keyCode || 0 == event.keyCode) {
+           var barcodeVal = _selBARCODE.value.trim();
+           if (barcodeVal.length >= 6) {
+               queryBarcodeInfo(barcodeVal);
+           }
+       }
+       _selBARCODE.focus();
+   }, false);
+   ```
+3. **Ajax 交互**：通过 `mui.ajax(requestPath + '/ashx/模块.ashx', ...)` 发起 POST 请求。
+4. **提交与提示**：
+   - 提交前调用 `OnCheckText()` 校验必填；
+   - 提交时调用 `mask.show()`，成功后 `mui.toast(...)` 提示并 `OnCleanText()` 清空；
+   - 异常时调用 `mui.alert(...)`。
+
+### 步骤 3：后端 ASHX 入口（参照 `LTA01.ashx`）
+在 `Ashx/` 目录下新增处理程序（模板位于 [`templates/AshxHandlerTemplate.ashx`](./templates/AshxHandlerTemplate.ashx)）：
+```csharp
+public class LTA01 : IHttpHandler, IReadOnlySessionState
+{
+    public void ProcessRequest(HttpContext context)
+    {
+        context.Response.Write(new LTA0001Bll().ProcessRequest(context));
+    }
+    public bool IsReusable => false;
+}
 ```
 
-### 步骤 1：梳理扫码业务规则
-- **条码类型**：硫化胎胚条码、半部件台车条码、返回胶标签条码、库位码等。
-- **校验逻辑**：条码格式与长度校验、防重复扫描、当前状态/工序防呆（如非本工序、已报废、已出库拦截）。
-- **提交参数**：固定首两位为 `FAC`、`LOGINNAME`，其余为条码值与表单输入项。
-
-### 步骤 2：生成 HTML 页面
-基于模板 [`templates/PdaPageTemplate.html`](./templates/PdaPageTemplate.html)：
-- 引用 MUI 基础样式与脚本 (`mui.min.css`, `mui.min.js`)。
-- 扫码输入框设置 `autofocus` 和对应语义的 `placeholder`。
-- 预置成功提示音 (`success.mp3`) 与报警蜂鸣音 (`error.mp3`) 标签。
-- 关键状态以徽标或卡片形式展示（如绿标“合格”、红标“异常”）。
-
-### 步骤 3：生成 JS 控制器
-基于模板 [`templates/PdaScriptTemplate.js`](./templates/PdaScriptTemplate.js)：
-- 监听硬件扫码头按键事件（兼容 `13`、`0`、`229` 键码）。
-- 提交前拦截：空值检查、最短长度检查、高频连续触发拦截（防连扫）。
-- 统一通过 `mui.ajax` 或封装好的 RPC 函数向后端发送数据。
-- 无论成功或报错，必须保证**输入框光标复位 (`input.select()` / `input.focus()`)**。
-- 业务异常必须触发**报警音效**与高亮红框提示。
-
-### 步骤 4：生成后端 WebService 方法
-基于模板 [`templates/WebServiceMethodTemplate.cs`](./templates/WebServiceMethodTemplate.cs)：
-- 使用 `[WebMethod]` 注解。
-- 统一参数规约：解析前端传入的 `ArrayList` 或 `string[]`。
-- 数据库操作严格依赖 `Config.DataBase`，涉及多表写入必须启用事务 (`BeginTransaction` / `Commit` / `RollBack`)。
-- 时间字段统一使用 `TimeService.GetFrameDateTime()`。
-- 返回标准化 JSON 数据包：`{ status: "ok"|"error", msg: "...", data: { ... } }`。
+### 步骤 4：后端 BLL 逻辑（参照 `LTA0001Bll.cs`）
+在 `Mobile.PrinxChengShan.Bll/` 下创建业务类（模板位于 [`templates/BllClassTemplate.cs`](./templates/BllClassTemplate.cs)）：
+- `ProcessRequest` 中获取 `context.Request["action"]`，使用 `switch-case` 分发；
+- `action == "by"`：调用 DAL 执行条码查询，返回实体；
+- `action == "up"`：获取参数调用 DAL 更新数据；
+- 统一返回 JSON：`JsonHelper<Messaging<T>>.EntityToJson(...)`。
 
 ---
 
-## 3. 现场终端核心守则 (Field Operation Rules)
+## 4. 约束
 
-1. **零鼠标/零手触交互设计**：
-   - 工人佩戴手套操作，界面应支持纯扫码触发提交，不能强制要求点按“确定”按钮。
-2. **光标永远不丢失 (Focus Retention)**：
-   - 任何一次扫码（即使服务端校验报错）后，必须通过 `setTimeout` 或回调立即夺回输入框焦点。
-3. **声光双重防错 (Audio & Visual Feedback)**：
-   - 现场噪音极大，报错时必须伴随蜂鸣音 + 界面震动/红色闪烁。
-4. **会话持久化与离线感知**：
-   - 工厂信息及登录人必须来自 `localStorage`。遇到网络超时必须明确提示“网络连接中断，请重试”，禁止无限假死转圈。
+- 严格依循现有代码约定，不要引入不存在的第三方库或额外特性。
+- 扫码输入框在任何交互后（回显成功或报错后）均应保持光标聚焦（`_selBARCODE.focus()`）。
+- 提交前后使用 `mask.show()` 与 `mask.close()` 避免连击。

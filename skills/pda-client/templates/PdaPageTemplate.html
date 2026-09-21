@@ -1,74 +1,80 @@
 <!DOCTYPE html>
 <html>
+<!--
+//  功能描述(Description)：{PAGE_TITLE}
+//  作者(Author)：AI Assistant
+//  日期(Create Time)：{CREATE_DATE}
+//  参考代码：03-PDA/LonSon.Mobile.PrinxChengShan.App/Forming/BarcodeUpdate.html
+-->
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
     <title>{PAGE_TITLE}</title>
-    <link rel="stylesheet" href="../css/style.css" />
-    <link rel="stylesheet" href="../css/mui.min.css"/>
-    <link rel="stylesheet" href="../css/mui.picker.min.css" />
-    <link rel="stylesheet" href="../JavaScript/bootstrap.css"/>
-    <link rel="stylesheet" href="../JavaScript/01CSS/index.css"/>
-    <script type="text/javascript" src="../js/jquery-3.3.1.min.js"></script>
-    <script type="text/javascript" src="../js/mui.min.js"></script>
-    <script type="text/javascript" src="../js/mui.picker.min.js"></script>
-    <script type="text/javascript" src="../JavaScript/language.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="stylesheet" href="../css/mui.min.css" />
+    <link rel="stylesheet" type="text/css" href="../css/mui.picker.min.css" />
+    <link rel="stylesheet" href="../css/comStyle.css" />
 </head>
+
 <body>
-    <header class="mui-bar mui-bar-nav i_totle">
-        <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left" id="btn_back"></a>
-        <h1 class="mui-title i_h1">{PAGE_TITLE}</h1>
+    <!-- 顶部导航栏 -->
+    <header class="mui-bar mui-bar-nav">
+        <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+        <h1 class="mui-title"><label id="lblTitle">{PAGE_TITLE}</label></h1>
     </header>
 
-    <div class="mui-content i_over" style="padding-top: 50px;">
-        <div class="AddForm" style="margin: 10px 15px;">
-            <!-- 扫码主输入区 -->
-            <div style="position: relative;">
-                <input class="i_LOTID" id="BARCODE" placeholder="请扫描条码/输入批次号..." autocomplete="off" />
-                <span class="i_Req" style="position: absolute; right: 10px; top: 10px; color: red;">*</span>
+    <!-- 页面内容区 -->
+    <div class="mui-content">
+        <div class="mui-content-padded">
+            <div class="mui-input-group">
+                <!-- 扫码输入框 -->
+                <div class="mui-input-row">
+                    <input type="text" id="selBARCODE" placeholder="扫描条码... " />
+                </div>
+                <!-- 只读属性展示 -->
+                <div class="mui-input-row">
+                    <label id="lblBARCODE">条码:</label>
+                    <input type="text" id="txtBARCODE" class="mui-input" readonly="readonly" style="font-weight:bold;"/>
+                </div>
+                <div class="mui-input-row">
+                    <label id="lblITNBR">规格代码:</label>
+                    <input type="text" id="txtITNBR" class="mui-input" readonly="readonly" style="font-weight:bold;"/>
+                </div>
+                <div class="mui-input-row">
+                    <label id="lblITDSC">规格名称:</label>
+                    <input type="text" id="txtITDSC" class="mui-input" readonly="readonly" style="font-weight:bold;"/>
+                </div>
+                <div class="mui-input-row">
+                    <label id="lblQTY">数量:</label>
+                    <input type="text" id="txtQTY" class="mui-input" />
+                </div>
             </div>
-
-            <!-- 只读属性回显区 -->
-            <div style="margin-top: 8px;">
-                <label class="i_lbl">物料编码:</label>
-                <input class="i_read" id="ITNBR" readonly="readonly" />
+            <br/>
+            <!-- 操作按钮 -->
+            <div style="text-align: center;">
+                <button type="button" class="mui-btn mui-btn-danger mui-action-back"><label id="lblBack">返回</label></button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <button id="btnAdd" type="button" class="mui-btn mui-btn-primary"><label id="lblOK">确定</label></button>
             </div>
-            <div>
-                <label class="i_lbl">物料描述:</label>
-                <input class="i_read" id="ITDSC" readonly="readonly" />
-            </div>
-            <div>
-                <label class="i_lbl">数量/重量:</label>
-                <input class="i_read" id="QTY" type="number" placeholder="0.000" />
-            </div>
-
-            <!-- 操作按钮组 -->
-            <div style="margin-top: 15px; display: flex; justify-content: space-around;">
-                <button type="button" class="mui-btn mui-btn-primary" id="btnSubmit" style="width: 45%;">确认提交</button>
-                <button type="button" class="mui-btn mui-btn-danger" id="btnClear" style="width: 45%;">清空重置</button>
-            </div>
+            <br/><br/><br/>
         </div>
 
-        <!-- 历史/明细列表区 -->
-        <div style="margin: 10px 15px;">
-            <div style="font-weight: bold; padding: 5px 0;">已处理明细 (共 <span id="recordCount">0</span> 条)</div>
-            <table class="table table-bordered table-striped" style="font-size: 13px;">
-                <thead>
-                    <tr>
-                        <th>条码/批次</th>
-                        <th>规格</th>
-                        <th>数量</th>
-                        <th>时间</th>
-                    </tr>
-                </thead>
-                <tbody id="detailBody">
-                    <!-- 动态插入明细行 -->
-                </tbody>
-            </table>
-        </div>
+        <!-- 底部登录人与工厂状态栏 -->
+        <nav class="mui-bar mui-bar-tab">
+            <a class="mui-tab-item">
+                <label id="lblUs">用户:</label><span id="lblUser"></span>
+            </a>
+            <a class="mui-tab-item">
+                <span id="lblTime"></span>
+            </a>
+        </nav>
     </div>
-
-    <!-- 关联控制器脚本 -->
-    <script type="text/javascript" src="../JavaScript/01JS/{SCRIPT_NAME}.js"></script>
 </body>
+<script src="../js/jquery-3.3.1.min.js"></script>
+<script src="../js/mui.min.js"></script>
+<script src="../js/mui.picker.min.js"></script>
+<script src="../js/utilComm.js"></script>
+<script src="../js/Language.js"></script>
+<script src="../js/Lang.js"></script>
+<script src="../js/{SCRIPT_NAME}.js"></script>
 </html>
