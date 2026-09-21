@@ -88,17 +88,31 @@ public class LTA01 : IHttpHandler, IReadOnlySessionState
 }
 ```
 
-### 步骤 4：后端 BLL 逻辑（参照 `LTA0001Bll.cs`）
+### 步骤 4：后端 BLL 逻辑（参照 `BarcodeQueryBll.cs` / `LTA0001Bll.cs`）
 在 `Mobile.PrinxChengShan.Bll/` 下创建业务类（模板位于 [`templates/BllClassTemplate.cs`](./templates/BllClassTemplate.cs)）：
+- **严禁建立实体类！** 后端直接通过 SQL 查出 `DataTable`，或直接处理字符串（`string`）。
 - `ProcessRequest` 中获取 `context.Request["action"]`，使用 `switch-case` 分发；
-- `action == "by"`：调用 DAL 执行条码查询，返回实体；
-- `action == "up"`：获取参数调用 DAL 更新数据；
-- 统一返回 JSON：`JsonHelper<Messaging<T>>.EntityToJson(...)`。
+- **查询数据（返回 DataTable）**：
+  ```csharp
+  DataTable dt = dal.GetBarcodeQueryData(barcode, fac);
+  // 直接传入 dt，序列化后前端通过 data.TL 读取
+  return JsonHelper<Messaging<string>>.EntityToJson(new Messaging<string>("0", "查询成功", dt));
+  ```
+- **提交/保存（返回字符串消息）**：
+  ```csharp
+  bool success = dal.UpdateData(barcode, fac, loginName, qty);
+  return JsonHelper<Messaging<string>>.EntityToJson(new Messaging<string>(success ? "0" : "1", success ? "操作成功！" : "保存失败！"));
+  ```
+- **异常捕获**：返回 `"500"` 及错误字符串：
+  ```csharp
+  return JsonHelper<Messaging<string>>.EntityToJson(new Messaging<string>("500", ex.Message));
+  ```
 
 ---
 
 ## 4. 约束
 
+- **严禁建立 Model/实体类**：所有后端查询直接返回 `DataTable`，由 `Messaging<string>` 封装到 `TL`，前端通过 `data.TL[0]` 取值；状态/提示直接用 `string`。
 - 严格依循现有代码约定，不要引入不存在的第三方库或额外特性。
 - 扫码输入框在任何交互后（回显成功或报错后）均应保持光标聚焦（`_selBARCODE.focus()`）。
 - 提交前后使用 `mask.show()` 与 `mask.close()` 避免连击。

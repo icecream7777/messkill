@@ -84,13 +84,14 @@ var storage = window.localStorage;
             dataType: 'json',
             type: 'post',
             success: function(data) {
-                if (data.Info && data.Info.BARCODE) {
-                    mui('#txtBARCODE')[0].value = data.Info.BARCODE;
-                    mui('#txtITNBR')[0].value = data.Info.BUITNBR || "";
-                    mui('#txtITDSC')[0].value = data.Info.BUITDSC || "";
-                    mui('#txtQTY')[0].value = data.Info.QTY || "1";
+                if (data.ErrCode == "0" && data.TL && data.TL.length > 0) {
+                    var row = data.TL[0];
+                    mui('#txtBARCODE')[0].value = row.BARCODE || barcode;
+                    mui('#txtITNBR')[0].value = row.BUITNBR || "";
+                    mui('#txtITDSC')[0].value = row.BUITDSC || "";
+                    mui('#txtQTY')[0].value = row.QTY || "1";
                 } else {
-                    mui.toast("未找到扫描的条码信息!", {
+                    mui.toast(data.Error || "未找到扫描的条码信息!", {
                         duration: tim,
                         type: 'div'
                     });
